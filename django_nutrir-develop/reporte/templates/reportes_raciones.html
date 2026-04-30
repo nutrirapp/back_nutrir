@@ -3,6 +3,89 @@
 {% block content %}
     <h1> Reportes de raciones </h1>
     <hr>
+
+{#    Filtro organizacion comedor #}
+<div style="float: left; width: 90%; margin-bottom: 25px;">
+    <h3 style="font-size: 1.1rem">Filtros</h3>
+
+    <form method="get">
+        <label for="filtro-organizacion-raciones">Organización:</label>
+        <select
+            id="filtro-organizacion-raciones"
+            name="organizacion"
+            style="min-width: 250px; margin-right: 15px;"
+        >
+            <option value="" data-tipo="">Seleccione una organización</option>
+            {% for organizacion in organizaciones_raciones %}
+                <option
+                    value="{{ organizacion.id }}"
+                    data-tipo="{{ organizacion.tipo }}"
+                    data-padre-id="{{ organizacion.padre_id }}"
+                    {% if organizacion_seleccionada_raciones == organizacion.id|stringformat:"s" %}selected{% endif %}
+                >
+                    {% if organizacion.tipo == 'hija' %}
+                        — {{ organizacion.nombre }}
+                    {% else %}
+                        {{ organizacion.nombre }}
+                    {% endif %}
+                </option>
+            {% endfor %}
+        </select>
+
+        <input
+            type="hidden"
+            id="tipo-organizacion-raciones"
+            name="tipo_organizacion"
+            value="{{ tipo_organizacion_seleccionada_raciones|default:'' }}"
+        >
+
+        <label for="filtro-comedor-raciones">Comedor:</label>
+        <select
+            id="filtro-comedor-raciones"
+            name="comedor"
+            style="min-width: 250px; margin-right: 15px;"
+            disabled
+        >
+            <option value="">Todos los comedores</option>
+        </select>
+
+        <button type="submit" id="btn-filtrar-raciones">
+            Filtrar
+        </button>
+
+        <a href="{{ request.path }}" style="margin-left: 10px;">
+    Limpiar filtros
+        </a>
+{% if organizacion_seleccionada_raciones or comedor_seleccionado_raciones %}
+            <div style="margin-top: 12px; padding: 10px; background: #f5f5f5; border-left: 4px solid #79aec8;">
+                <strong>Filtro aplicado:</strong>
+
+                {% if nombre_organizacion_seleccionada_raciones %}
+                    <div>
+                        Organización:
+                        {{ nombre_organizacion_seleccionada_raciones }}
+                    </div>
+                {% endif %}
+
+                {% if nombre_comedor_seleccionado_raciones %}
+                    <div>
+                        Comedor:
+                        {{ nombre_comedor_seleccionado_raciones }}
+                    </div>
+                {% else %}
+                    {% if nombre_organizacion_seleccionada_raciones %}
+                        <div>
+                            Comedor:
+                            Todos los comedores
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endif %}
+    </form>
+</div>
+
+
 	<br>
 	<div class="raciones-dia-chart" style="float: left; width:90%;">
 		<h3 style="font-size: 1.1rem">Cantidad de raciones por dia de los ultimos 30 dias</h3>
@@ -40,7 +123,7 @@
 	</div>
 
 	<div class="raciones-comida-semana-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por comida de los ultimos 7 dias</h3>
+		<h3 style="font-size: 1.1rem">Cantidad de raciones por comida de los ultiraciones-rango-semana-chartsemanamos 7 dias</h3>
 		<canvas id="raciones-comida-semana-chart"></canvas>
 	</div>
 
@@ -54,6 +137,71 @@
 		function randomColorGenerator() {
             return '#' + (Math.random().toString(16) + '0000000').slice(2, 8);
         };
+
+         // Datos para filtros de raciones
+        const comedoresPorOrganizacionRaciones = [
+            {% for comedor in comedores_por_organizacion_raciones %}
+                {
+                    id: "{{ comedor.id }}",
+                    nombre: "{{ comedor.nombre|escapejs }}",
+                    organizacionHijaId: "{{ comedor.organizacion_hija_id }}",
+                    organizacionPadreId: "{{ comedor.organizacion_padre_id }}"
+                },
+            {% endfor %}
+        ];
+
+       const filtroOrganizacionRaciones = document.getElementById("filtro-organizacion-raciones");
+            const filtroComedorRaciones = document.getElementById("filtro-comedor-raciones");
+            const comedorSeleccionadoRaciones = "{{ comedor_seleccionado_raciones|default:'' }}";
+            {#input oculto#}
+            const tipoOrganizacionRaciones = document.getElementById("tipo-organizacion-raciones");
+            function cargarComedoresPorOrganizacion() {
+                const organizacionSeleccionadaId = filtroOrganizacionRaciones.value;
+                const opcionSeleccionada = filtroOrganizacionRaciones.options[filtroOrganizacionRaciones.selectedIndex];
+                const tipoOrganizacion = opcionSeleccionada.dataset.tipo;
+
+                tipoOrganizacionRaciones.value = tipoOrganizacion || "";
+
+                filtroComedorRaciones.innerHTML = '<option value="">Todos los comedores</option>';
+
+                if (!organizacionSeleccionadaId) {
+                    filtroComedorRaciones.disabled = true;
+                    return;
+                }
+
+                const comedoresFiltrados = comedoresPorOrganizacionRaciones.filter(function (comedor) {
+                    if (tipoOrganizacion === "padre") {
+                        return comedor.organizacionPadreId === organizacionSeleccionadaId;
+                    }
+
+                    if (tipoOrganizacion === "hija") {
+                        return comedor.organizacionHijaId === organizacionSeleccionadaId;
+                    }
+
+                    return false;
+                });
+
+                comedoresFiltrados.forEach(function (comedor) {
+                    const option = document.createElement("option");
+                    option.value = comedor.id;
+                    option.textContent = comedor.nombre;
+
+                    if (comedor.id === comedorSeleccionadoRaciones) {
+                        option.selected = true;
+                    }
+
+                    filtroComedorRaciones.appendChild(option);
+                });
+
+                filtroComedorRaciones.disabled = false;
+            }
+
+            filtroOrganizacionRaciones.addEventListener("change", function () {
+                cargarComedoresPorOrganizacion();
+            });
+
+            cargarComedoresPorOrganizacion();
+
 
 		// GRAFICO RACIONES POR DIA LOS ULTIMOS 30 ---------------------------------------------------------------------------------------------------
 

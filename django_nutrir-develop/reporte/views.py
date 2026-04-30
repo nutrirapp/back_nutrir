@@ -5,6 +5,7 @@ from .serializers import ComedorListaSerializer, ComedorListaLabelSerializer
 from encuesta.models import Encuesta, AlimentoEncuesta
 from django.db.models import Count, Sum, F, Q
 from django.http import JsonResponse
+import csv
 
 # Create your views here.
 
@@ -135,3 +136,4 @@ class ComidasSemanaViewList(generics.ListAPIView):
 			'lista': lista[0]
 		}
 		return JsonResponse(diccionario, safe=False)
+

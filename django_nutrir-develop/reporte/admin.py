@@ -8,6 +8,7 @@ from .models import ReporteNutricional, ReportesGenerales, ReportesRaciones
 from django.contrib import admin
 from comedor.models import Comedor
 from encuesta.models import Encuesta, AlimentoEncuesta
+from django.http import QueryDict
 from comida.models import Comida
 from responsable_organizacion.models import ResponsableOrganizacion
 
@@ -127,10 +128,32 @@ class ReportesRacionesAdmin(admin.ModelAdmin):
 
 	def changelist_view(self, request, extra_context=None):
 
+		organizacion_seleccionada = request.GET.get('organizacion')
+		comedor_seleccionado = request.GET.get('comedor')
+		tipo_organizacion_seleccionada = request.GET.get('tipo_organizacion')
+		get_original = request.GET.copy()
+		get_limpio = request.GET.copy()
+
+		if 'organizacion' in get_limpio:
+			del get_limpio['organizacion']
+
+		if 'comedor' in get_limpio:
+			del get_limpio['comedor']
+
+		if 'tipo_organizacion' in get_limpio:
+			del get_limpio['tipo_organizacion']
+
+		request.GET = get_limpio
+
 		response = super().changelist_view(
 			request,
 			extra_context=extra_context,
 		)
+
+		request.GET = get_original
+
+		if not hasattr(response, 'context_data'):
+			return response
 
 		r = ResponsableOrganizacion.objects.filter(responsable=request.user).values('organizacion')
 		if (request.user.is_superuser or request.user.groups.filter(name='Administrador').exists()):
@@ -140,6 +163,120 @@ class ReportesRacionesAdmin(admin.ModelAdmin):
 				Q(responsable_comedor=request.user) |
 				Q(organizacion_regional__in=r) |
 				Q(organizacion_regional__organizacion_superior__in=r)
+			)
+		# response = super().changelist_view(
+		# 	request,
+		# 	extra_context=extra_context,
+		# )
+
+		r = ResponsableOrganizacion.objects.filter(responsable=request.user).values('organizacion')
+		if (request.user.is_superuser or request.user.groups.filter(name='Administrador').exists()):
+			lc = Comedor.objects.all()
+		else:
+			lc = Comedor.objects.filter(
+				Q(responsable_comedor=request.user) |
+				Q(organizacion_regional__in=r) |
+				Q(organizacion_regional__organizacion_superior__in=r)
+			)
+		comedores_permitidos = lc
+
+
+		# - filtros Reportes por racion por organizcion/ comedores
+		organizaciones_dict = {}
+		comedores_por_organizacion = []
+
+		for comedor in comedores_permitidos.select_related(
+				'organizacion_regional',
+				'organizacion_regional__organizacion_superior'
+		):
+			organizacion_hija = comedor.organizacion_regional
+
+			if not organizacion_hija:
+				continue
+
+			organizacion_padre = organizacion_hija.organizacion_superior
+
+			if organizacion_hija.es_organizacion_regional and organizacion_padre:
+				organizaciones_dict[organizacion_padre.id] = {
+					'id': organizacion_padre.id,
+					'nombre': organizacion_padre.nombre,
+					'tipo': 'padre',
+					'padre_id': '',
+				}
+
+				organizaciones_dict[organizacion_hija.id] = {
+					'id': organizacion_hija.id,
+					'nombre': organizacion_hija.nombre,
+					'tipo': 'hija',
+					'padre_id': organizacion_padre.id,
+				}
+
+				comedores_por_organizacion.append({
+					'id': comedor.id,
+					'nombre': comedor.nombre,
+					'organizacion_hija_id': organizacion_hija.id,
+					'organizacion_padre_id': organizacion_padre.id,
+				})
+
+			else:
+				organizaciones_dict[organizacion_hija.id] = {
+					'id': organizacion_hija.id,
+					'nombre': organizacion_hija.nombre,
+					'tipo': 'padre',
+					'padre_id': '',
+				}
+
+				comedores_por_organizacion.append({
+					'id': comedor.id,
+					'nombre': comedor.nombre,
+					'organizacion_hija_id': organizacion_hija.id,
+					'organizacion_padre_id': organizacion_hija.id,
+				})
+
+		organizaciones = sorted(
+			organizaciones_dict.values(),
+			key=lambda organizacion: (
+				str(organizacion['padre_id']),
+				organizacion['tipo'],
+				organizacion['nombre']
+			)
+		)
+
+		# Buscar nombre de organizacoin/comedor
+		nombre_organizacion_seleccionada = None
+
+		if organizacion_seleccionada:
+			for organizacion in organizaciones:
+				if str(organizacion['id']) == str(organizacion_seleccionada):
+					nombre_organizacion_seleccionada = organizacion['nombre']
+					break
+
+		nombre_comedor_seleccionado = None
+
+		if comedor_seleccionado:
+			for comedor in comedores_por_organizacion:
+				if str(comedor['id']) == str(comedor_seleccionado):
+					nombre_comedor_seleccionado = comedor['nombre']
+					break
+		response.context_data['organizaciones_raciones'] = organizaciones
+		response.context_data['comedores_por_organizacion_raciones'] = comedores_por_organizacion
+		response.context_data['organizacion_seleccionada_raciones'] = organizacion_seleccionada
+		response.context_data['comedor_seleccionado_raciones'] = comedor_seleccionado
+		response.context_data['tipo_organizacion_seleccionada_raciones'] = tipo_organizacion_seleccionada
+		response.context_data['nombre_organizacion_seleccionada_raciones'] = nombre_organizacion_seleccionada
+		response.context_data['nombre_comedor_seleccionado_raciones'] = nombre_comedor_seleccionado
+
+
+		if comedor_seleccionado:
+			lc = comedores_permitidos.filter(id=comedor_seleccionado)
+		elif organizacion_seleccionada and tipo_organizacion_seleccionada == 'padre':
+			lc = comedores_permitidos.filter(
+				Q(organizacion_regional_id=organizacion_seleccionada) |
+				Q(organizacion_regional__organizacion_superior_id=organizacion_seleccionada)
+			)
+		elif organizacion_seleccionada and tipo_organizacion_seleccionada == 'hija':
+			lc = comedores_permitidos.filter(
+				organizacion_regional_id=organizacion_seleccionada
 			)
 
 		# Encuestas de los ultimos 12 meses ----------------------------------------------------------------------------
