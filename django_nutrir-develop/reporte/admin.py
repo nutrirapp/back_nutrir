@@ -153,7 +153,15 @@ class ReportesRacionesAdmin(admin.ModelAdmin):
 		request.GET = get_original
 
 		if not hasattr(response, 'context_data'):
+
 			return response
+
+
+
+
+
+
+
 
 		r = ResponsableOrganizacion.objects.filter(responsable=request.user).values('organizacion')
 		if (request.user.is_superuser or request.user.groups.filter(name='Administrador').exists()):
@@ -304,19 +312,41 @@ class ReportesRacionesAdmin(admin.ModelAdmin):
 		response.context_data['raciones_mes_rango_etario'] = cantidad_raciones_rango_etario_meses
 
 		# Cantidad de raciones por comida de los ultimos 12 meses
-		cantidad_raciones_comida_meses = AlimentoEncuesta.objects.select_related('encuesta').filter(encuesta__fecha__range=(fecha_limite, today), encuesta__comedor__in=lc).values('encuesta__fecha__year', 'encuesta__fecha__month', 'encuesta__cantidad_rango_1', 'encuesta__cantidad_rango_2', 'encuesta__cantidad_rango_3', 'encuesta__cantidad_rango_4', 'comida')
-		cantidad_raciones_comida_meses = cantidad_raciones_comida_meses.values('encuesta__fecha__year', 'encuesta__fecha__month', 'comida__nombre').annotate(cantidad=Sum(F('encuesta__cantidad_rango_1') + F('encuesta__cantidad_rango_2') + F('encuesta__cantidad_rango_3') + F('encuesta__cantidad_rango_4')))
-		comidas = set(cantidad_raciones_comida_meses.values_list('comida__nombre', flat=True))
-		fechas_bd = set(cantidad_raciones_comida_meses.values_list('encuesta__fecha__month', 'encuesta__fecha__year'))
+		# distinct() por (encuesta_id, comida) evita que múltiples ingredientes inflen el conteo
+		ae_mes = AlimentoEncuesta.objects.filter(
+			encuesta__fecha__range=(fecha_limite, today), encuesta__comedor__in=lc
+		).values(
+			'encuesta_id', 'comida__nombre',
+			'encuesta__fecha__year', 'encuesta__fecha__month',
+			'encuesta__cantidad_rango_1', 'encuesta__cantidad_rango_2',
+			'encuesta__cantidad_rango_3', 'encuesta__cantidad_rango_4',
+		).distinct()
+
+		comida_mes_map = {}
+		for ae in ae_mes:
+			key = (ae['encuesta__fecha__year'], ae['encuesta__fecha__month'], ae['comida__nombre'])
+			raciones = (ae['encuesta__cantidad_rango_1'] + ae['encuesta__cantidad_rango_2'] +
+						ae['encuesta__cantidad_rango_3'] + ae['encuesta__cantidad_rango_4'])
+			if key not in comida_mes_map:
+				comida_mes_map[key] = {
+					'encuesta__fecha__year': ae['encuesta__fecha__year'],
+					'encuesta__fecha__month': ae['encuesta__fecha__month'],
+					'comida__nombre': ae['comida__nombre'],
+					'cantidad': 0,
+				}
+			comida_mes_map[key]['cantidad'] += raciones
+
+		cantidad_raciones_comida_meses = list(comida_mes_map.values())
+		comidas = set(r['comida__nombre'] for r in cantidad_raciones_comida_meses)
+		fechas_bd = set((r['encuesta__fecha__month'], r['encuesta__fecha__year']) for r in cantidad_raciones_comida_meses)
 		agregar = []
 		fechas = []
 		for f in fechas_bd:
 			fechas.append(str(f[0])+'/'+str(f[1]))
 			for c in comidas:
-				t = cantidad_raciones_comida_meses.filter(comida__nombre=c, encuesta__fecha__month=f[0], encuesta__fecha__year=f[1])
-				if not t:
+				if not any(r['comida__nombre'] == c and r['encuesta__fecha__month'] == f[0] and r['encuesta__fecha__year'] == f[1] for r in cantidad_raciones_comida_meses):
 					agregar.append({'comida__nombre': c, 'encuesta__fecha__month': f[0], 'encuesta__fecha__year': f[1], 'cantidad': 0})
-		cantidad_raciones_comida_meses = list(cantidad_raciones_comida_meses) + agregar
+		cantidad_raciones_comida_meses = cantidad_raciones_comida_meses + agregar
 		cantidad_raciones_comida_meses.sort(key=self.getComidaMesAño)
 		fechas.sort(key=self.getAñoMes)
 		response.context_data['raciones_comida_mes'] = cantidad_raciones_comida_meses
@@ -349,17 +379,37 @@ class ReportesRacionesAdmin(admin.ModelAdmin):
 		response.context_data['raciones_semana_rango_etario'] = cantidad_raciones_rango_etario_dias
 
 		# Cantidad de raciones por comida de los ultimos 7 dias
-		cantidad_raciones_comida_dias = AlimentoEncuesta.objects.select_related('encuesta').filter(encuesta__fecha__range=(fecha, today), encuesta__comedor__in=lc).values('encuesta__fecha', 'encuesta__cantidad_rango_1', 'encuesta__cantidad_rango_2', 'encuesta__cantidad_rango_3', 'encuesta__cantidad_rango_4', 'comida')
-		cantidad_raciones_comida_dias = cantidad_raciones_comida_dias.values('encuesta__fecha', 'comida__nombre').annotate(cantidad=Sum(F('encuesta__cantidad_rango_1') + F('encuesta__cantidad_rango_2') + F('encuesta__cantidad_rango_3') + F('encuesta__cantidad_rango_4'))).order_by('encuesta__fecha')
-		comidas = set(cantidad_raciones_comida_dias.values_list('comida__nombre', flat=True))
-		fechas = set(cantidad_raciones_comida_dias.values_list('encuesta__fecha', flat=True))
+		# distinct() por (encuesta_id, comida) evita que múltiples ingredientes inflen el conteo
+		ae_semana = AlimentoEncuesta.objects.filter(
+			encuesta__fecha__range=(fecha, today), encuesta__comedor__in=lc
+		).values(
+			'encuesta_id', 'comida__nombre', 'encuesta__fecha',
+			'encuesta__cantidad_rango_1', 'encuesta__cantidad_rango_2',
+			'encuesta__cantidad_rango_3', 'encuesta__cantidad_rango_4',
+		).distinct()
+
+		comida_dia_map = {}
+		for ae in ae_semana:
+			key = (ae['encuesta__fecha'], ae['comida__nombre'])
+			raciones = (ae['encuesta__cantidad_rango_1'] + ae['encuesta__cantidad_rango_2'] +
+						ae['encuesta__cantidad_rango_3'] + ae['encuesta__cantidad_rango_4'])
+			if key not in comida_dia_map:
+				comida_dia_map[key] = {
+					'encuesta__fecha': ae['encuesta__fecha'],
+					'comida__nombre': ae['comida__nombre'],
+					'cantidad': 0,
+				}
+			comida_dia_map[key]['cantidad'] += raciones
+
+		cantidad_raciones_comida_dias = sorted(comida_dia_map.values(), key=lambda x: x['encuesta__fecha'])
+		comidas = set(r['comida__nombre'] for r in cantidad_raciones_comida_dias)
+		fechas = set(r['encuesta__fecha'] for r in cantidad_raciones_comida_dias)
 		agregar = []
 		for f in fechas:
 			for c in comidas:
-				t = cantidad_raciones_comida_dias.filter(comida__nombre=c, encuesta__fecha=f)
-				if not t:
+				if not any(r['comida__nombre'] == c and r['encuesta__fecha'] == f for r in cantidad_raciones_comida_dias):
 					agregar.append({'comida__nombre': c, 'encuesta__fecha': f, 'cantidad': 0})
-		cantidad_raciones_comida_dias = list(cantidad_raciones_comida_dias) + agregar
+		cantidad_raciones_comida_dias = cantidad_raciones_comida_dias + agregar
 		cantidad_raciones_comida_dias.sort(key=self.getComidaFecha)
 		response.context_data['raciones_comida_semana'] = cantidad_raciones_comida_dias
 		response.context_data['fechas_semana'] = fechas
