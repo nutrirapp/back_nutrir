@@ -577,11 +577,14 @@ def export_ingredients_csv(request):
 			}
 		grouped_data[key]['ingredientes'].append(ae_entry)
 
-	all_alimentos = {}
+	alimento_info = {}
 	for data in grouped_data.values():
 		for ae in data['ingredientes']:
-			all_alimentos[ae.alimento.id] = ae.alimento.nombre
-	alimentos_ordered = sorted(all_alimentos.items(), key=lambda x: x[1])
+			aid = ae.alimento.id
+			if aid not in alimento_info:
+				unit = 'l' if ae.unidad.equivalencia_ml else 'kg'
+				alimento_info[aid] = {'nombre': ae.alimento.nombre, 'unit': unit}
+	alimentos_ordered = sorted(alimento_info.items(), key=lambda x: x[1]['nombre'])
 
 	comida_ids = {d['comida'].id for d in grouped_data.values()}
 	comida_horario_map = {}
@@ -599,7 +602,7 @@ def export_ingredients_csv(request):
 				comida_horario_map[comida_id] = horario_nombre
 
 	fixed_headers = ['Fecha', 'Organizacion', 'Comedor', 'Comida', 'Tipo de Comida', 'Cantidad Raciones']
-	alimento_headers = [f"{nombre} (kg)" for _, nombre in alimentos_ordered]
+	alimento_headers = [f"{info['nombre']} ({info['unit']})" for _, info in alimentos_ordered]
 	writer.writerow(fixed_headers + alimento_headers)
 
 	for key, data in grouped_data.items():
@@ -639,8 +642,8 @@ def export_ingredients_csv(request):
 			f"{total_raciones:.0f}",
 		]
 		for alimento_id, _ in alimentos_ordered:
-			kg = alimento_kg.get(alimento_id)
-			row.append(f"{kg:.3f}" if kg is not None else '')
+			val = alimento_kg.get(alimento_id)
+			row.append(f"{val:.3f}" if val is not None else '')
 		writer.writerow(row)
 
 	return response
