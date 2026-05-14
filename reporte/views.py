@@ -15,20 +15,6 @@ from comida.models import Comida
 # Create your views here.
 
 # Consultar raciones del ultimo mes ------------------------------------------------------------------------------------
-(.venv)   seba-dev   ~/Projects/nutrirApp/django_nutrir git-[ cantidad-Alimento-csv]-  git status                        
-On branch cantidad-Alimento-csv
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-        modified:   reporte/templates/reportes_raciones.html
-        modified:   reporte/views.py
-
-no changes added to commit (use "git add" and/or "git commit -a")
-(.venv)   seba-dev   ~/Projects/nutrirApp/django_nutrir git-[ cantidad-Alimento-csv]-  git add . 
-(.venv)   seba-dev   ~/Projects/nutrirApp/django_nutrir git-[ cantidad-Alimento-csv]-  git commit -m "fix unidad al exportar csv cantidad de alimentos"
-[cantidad-Alimento-csv 59f14ab] fix unidad al exportar csv cantidad de alimentos
- 2 files changed, 10 insertions(+), 7 deletions(-)
-(.venv)   seba-dev   ~/Projects/nutrirApp/django_nutrir git-[ cantidad-Alimento-csv]-  
 def racionesPorDia(comedor, fecha_inicio, fecha_fin):
 	lista = Encuesta.objects.filter(comedor=comedor, fecha__range=(fecha_inicio, fecha_fin))
 	lista = lista.values('fecha').annotate(cantidad=Sum(	F('cantidad_rango_1') + F('cantidad_rango_2') + F('cantidad_rango_3') + F('cantidad_rango_4'))).order_by('fecha')
