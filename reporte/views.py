@@ -502,3 +502,145 @@ def export_detailed_raciones_csv(request):
 		])
 
 	return response
+
+
+def export_ingredients_csv(request):
+	response = HttpResponse(content_type='text/csv')
+	response['Content-Disposition'] = 'attachment; filename="reporte_alimentos.csv"'
+
+	writer = csv.writer(response)
+
+	organizacion_seleccionada = request.GET.get('organizacion')
+	comedor_seleccionado = request.GET.get('comedor')
+	tipo_organizacion_seleccionada = request.GET.get('tipo_organizacion')
+
+	r = ResponsableOrganizacion.objects.filter(responsable=request.user).values('organizacion')
+	if (request.user.is_superuser or request.user.groups.filter(name='Administrador').exists()):
+		comedores_permitidos = Comedor.objects.all()
+	else:
+		comedores_permitidos = Comedor.objects.filter(
+			Q(responsable_comedor=request.user) |
+			Q(organizacion_regional__in=r) |
+			Q(organizacion_regional__organizacion_superior__in=r)
+		)
+
+	lc = comedores_permitidos
+
+	if comedor_seleccionado:
+		lc = comedores_permitidos.filter(id=comedor_seleccionado)
+	elif organizacion_seleccionada and tipo_organizacion_seleccionada == 'padre':
+		lc = comedores_permitidos.filter(
+			Q(organizacion_regional_id=organizacion_seleccionada) |
+			Q(organizacion_regional__organizacion_superior_id=organizacion_seleccionada)
+		)
+	elif organizacion_seleccionada and tipo_organizacion_seleccionada == 'hija':
+		lc = comedores_permitidos.filter(organizacion_regional_id=organizacion_seleccionada)
+
+	fecha_inicio_str = request.GET.get('fecha_inicio')
+	fecha_fin_str = request.GET.get('fecha_fin')
+
+	if fecha_inicio_str and fecha_fin_str:
+		try:
+			fecha_inicio = date.fromisoformat(fecha_inicio_str)
+			fecha_fin = date.fromisoformat(fecha_fin_str)
+			max_fecha_fin_permitida = fecha_inicio + relativedelta(months=3) - timedelta(days=1)
+			if fecha_fin > max_fecha_fin_permitida:
+				fecha_fin = max_fecha_fin_permitida
+			if fecha_inicio > fecha_fin:
+				fecha_fin = date.today()
+				fecha_inicio = fecha_fin - relativedelta(months=3)
+		except ValueError:
+			fecha_fin = date.today()
+			fecha_inicio = fecha_fin - relativedelta(months=3)
+	else:
+		fecha_fin = date.today()
+		fecha_inicio = fecha_fin - relativedelta(months=3)
+
+	relevant_alimento_encuestas = AlimentoEncuesta.objects.filter(
+		encuesta__comedor__in=lc,
+		encuesta__fecha__range=(fecha_inicio, fecha_fin)
+	).select_related(
+		'encuesta', 'encuesta__comedor',
+		'encuesta__comedor__organizacion_regional',
+		'encuesta__comedor__organizacion_regional__organizacion_superior',
+		'comida', 'alimento', 'unidad',
+	).order_by('encuesta__fecha', 'encuesta__comedor__nombre', 'comida__nombre')
+
+	grouped_data = {}
+	for ae_entry in relevant_alimento_encuestas:
+		key = (ae_entry.encuesta.id, ae_entry.comida.id)
+		if key not in grouped_data:
+			grouped_data[key] = {
+				'encuesta': ae_entry.encuesta,
+				'comida': ae_entry.comida,
+				'ingredientes': [],
+			}
+		grouped_data[key]['ingredientes'].append(ae_entry)
+
+	all_alimentos = {}
+	for data in grouped_data.values():
+		for ae in data['ingredientes']:
+			all_alimentos[ae.alimento.id] = ae.alimento.nombre
+	alimentos_ordered = sorted(all_alimentos.items(), key=lambda x: x[1])
+
+	comida_ids = {d['comida'].id for d in grouped_data.values()}
+	comida_horario_map = {}
+	if comida_ids:
+		placeholders = ','.join(['%s'] * len(comida_ids))
+		with connection.cursor() as cursor:
+			cursor.execute(
+				f"SELECT cch.comida_id, ch.nombre "
+				f"FROM comida_comida_horarios cch "
+				f"JOIN comida_horario ch ON ch.id = cch.horario_id "
+				f"WHERE cch.comida_id IN ({placeholders})",
+				list(comida_ids)
+			)
+			for comida_id, horario_nombre in cursor.fetchall():
+				comida_horario_map[comida_id] = horario_nombre
+
+	fixed_headers = ['Fecha', 'Organizacion', 'Comedor', 'Comida', 'Tipo de Comida', 'Cantidad Raciones']
+	alimento_headers = [f"{nombre} (kg)" for _, nombre in alimentos_ordered]
+	writer.writerow(fixed_headers + alimento_headers)
+
+	for key, data in grouped_data.items():
+		encuesta = data['encuesta']
+		comida = data['comida']
+
+		total_raciones = (
+			encuesta.cantidad_rango_1 + encuesta.cantidad_rango_2 +
+			encuesta.cantidad_rango_3 + encuesta.cantidad_rango_4
+		)
+
+		alimento_kg = {}
+		for ae in data['ingredientes']:
+			unidad = ae.unidad
+			if unidad.equivalencia_gramos:
+				cantidad_kg = float(ae.cantidad) * float(unidad.equivalencia_gramos) / 1000
+			else:
+				cantidad_kg = float(ae.cantidad) * float(unidad.equivalencia_ml) / 1000
+			alimento_kg[ae.alimento.id] = cantidad_kg
+
+		org = encuesta.comedor.organizacion_regional
+		if org and org.es_organizacion_regional and org.organizacion_superior:
+			org_nombre = org.organizacion_superior.nombre
+		elif org:
+			org_nombre = org.nombre
+		else:
+			org_nombre = ''
+
+		tipo_comida = comida_horario_map.get(comida.id, '-')
+
+		row = [
+			encuesta.fecha.strftime('%d/%m/%Y'),
+			org_nombre,
+			encuesta.comedor.nombre,
+			comida.nombre,
+			tipo_comida,
+			f"{total_raciones:.0f}",
+		]
+		for alimento_id, _ in alimentos_ordered:
+			kg = alimento_kg.get(alimento_id)
+			row.append(f"{kg:.3f}" if kg is not None else '')
+		writer.writerow(row)
+
+	return response

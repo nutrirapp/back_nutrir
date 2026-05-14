@@ -213,6 +213,12 @@
                                 &#11123; Descargar CSV
                             </button>
                         </div>
+                        <div style="margin-top:10px; display:flex; align-items:center; gap:8px;">
+                            <input type="checkbox" id="check-exportar-alimentos" style="width:16px; height:16px; cursor:pointer;">
+                            <label for="check-exportar-alimentos" style="font-size:0.85rem; color:#333; cursor:pointer; margin:0;">
+                                Exportar alimentos en kg (en lugar de nutrientes)
+                            </label>
+                        </div>
                         <p id="date-range-error" class="date-range-error">
                             El rango de fechas no puede exceder los 3 meses.
                         </p>
@@ -338,8 +344,11 @@
                 const organizacionId = document.getElementById("filtro-organizacion-raciones").value;
                 const comedorId = document.getElementById("filtro-comedor-raciones").value;
                 const tipoOrganizacion = document.getElementById("tipo-organizacion-raciones").value;
+                const soloAlimentos = document.getElementById("check-exportar-alimentos").checked;
 
-                let exportUrl = "{% url 'export-detailed-raciones-csv' %}";
+                let exportUrl = soloAlimentos
+                    ? "{% url 'export-ingredients-csv' %}"
+                    : "{% url 'export-detailed-raciones-csv' %}";
                 let params = [];
 
                 if (organizacionId) params.push(`organizacion=${organizacionId}`);
