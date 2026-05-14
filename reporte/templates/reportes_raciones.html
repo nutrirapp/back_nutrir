@@ -1,582 +1,970 @@
 {% extends "base_site_prueba.html" %}
 
 {% block content %}
-    <h1> Reportes de raciones </h1>
+<style>
+    .raciones-filtros-card {
+        float: left;
+        width: 90%;
+        margin-bottom: 25px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        padding: 15px 20px;
+        box-sizing: border-box;
+    }
+    .raciones-filtros-card h3 {
+        font-size: 1rem;
+        color: #666;
+        margin: 0 0 12px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .filtros-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .filtros-row select {
+        min-width: 220px;
+        padding: 5px 8px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-size: 0.85rem;
+    }
+    .filtros-row label {
+        font-size: 0.85rem;
+        font-weight: bold;
+        color: #333;
+    }
+    .btn-filtrar {
+        background: #417690;
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        padding: 6px 14px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    .btn-filtrar:hover { background: #2b5068; }
+    .btn-limpiar {
+        color: #417690;
+        font-size: 0.85rem;
+        text-decoration: none;
+    }
+    .filtro-aplicado-box {
+        margin-top: 15px;
+        background: #f0f6fa;
+        border: 1px solid #c4d8e4;
+        border-left: 4px solid #417690;
+        border-radius: 3px;
+        padding: 12px 15px;
+    }
+    .filtro-aplicado-box strong {
+        display: block;
+        font-size: 0.85rem;
+        color: #417690;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .filtro-aplicado-box .filtro-item {
+        font-size: 0.9rem;
+        color: #333;
+        margin: 2px 0;
+    }
+    .export-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #d0d9de;
+    }
+    .export-section h4 {
+        font-size: 0.9rem;
+        margin: 0 0 12px 0;
+        color: #333;
+    }
+    .export-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .export-row label {
+        font-size: 0.85rem;
+        font-weight: bold;
+        color: #333;
+        white-space: nowrap;
+    }
+    #csv-fecha-rango {
+        min-width: 230px;
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-size: 0.85rem;
+        background: #fff;
+        cursor: pointer;
+    }
+    .btn-download {
+        background: #28a745;
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        padding: 7px 16px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.15s;
+    }
+    .btn-download:hover { background: #1e7e34; }
+    .btn-download:disabled { background: #aaa; cursor: not-allowed; }
+    .date-range-error {
+        color: #ba2121;
+        font-size: 0.85rem;
+        margin-top: 6px;
+        display: none;
+    }
+</style>
+
+    <h1>Reportes de raciones</h1>
     <hr>
-	<br>
-	<div class="raciones-dia-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por dia de los ultimos 30 dias</h3>
-		<canvas id="raciones-dia-chart"></canvas>
-	</div>
 
-	<div class="raciones-mes-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por mes de los ultimos 12 meses</h3>
-		<canvas id="raciones-mes-chart"></canvas>
-	</div>
+    <div class="raciones-filtros-card">
+        <h3>Filtros</h3>
 
-	<div class="raciones-funcionamiento-mes-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por funcionamiento de los ultimos 12 meses</h3>
-		<canvas id="raciones-funcionamiento-mes-chart"></canvas>
-	</div>
+        <form method="get">
+            <div class="filtros-row">
+                <label for="filtro-organizacion-raciones">Organización:</label>
+                <select
+                        id="filtro-organizacion-raciones"
+                        name="organizacion"
+                >
+                    <option value="" data-tipo="">Seleccione una organización</option>
+                    {% for organizacion in organizaciones_raciones %}
+                        <option
+                                value="{{ organizacion.id }}"
+                                data-tipo="{{ organizacion.tipo }}"
+                                data-padre-id="{{ organizacion.padre_id }}"
+                                {% if organizacion_seleccionada_raciones == organizacion.id|stringformat:"s" %}selected{% endif %}
+                        >
+                            {% if organizacion.tipo == 'hija' %}
+                                — {{ organizacion.nombre }}
+                            {% else %}
+                                {{ organizacion.nombre }}
+                            {% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
 
-	<div class="raciones-funcionamiento-semana-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por funcionamiento de los ultimos 7 dias</h3>
-		<canvas id="raciones-funcionamiento-semana-chart"></canvas>
-	</div>
+                <input
+                        type="hidden"
+                        id="tipo-organizacion-raciones"
+                        name="tipo_organizacion"
+                        value="{{ tipo_organizacion_seleccionada_raciones|default:'' }}"
+                >
 
-	<div class="raciones-rango-mes-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por rango etario de los ultimos 12 meses</h3>
-		<canvas id="raciones-rango-mes-chart"></canvas>
-	</div>
+                <label for="filtro-comedor-raciones">Comedor:</label>
+                <select
+                        id="filtro-comedor-raciones"
+                        name="comedor"
+                        disabled
+                >
+                    <option value="">Todos los comedores</option>
+                </select>
 
-	<div class="raciones-rango-semana-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por rango etario de los ultimos 7 dias</h3>
-		<canvas id="raciones-rango-semana-chart"></canvas>
-	</div>
+                <button type="submit" id="btn-filtrar-raciones" class="btn-filtrar">
+                    Filtrar
+                </button>
 
-	<div class="raciones-comida-mes-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por comida de los ultimos 12 meses</h3>
-		<canvas id="raciones-comida-mes-chart"></canvas>
-	</div>
+                <a href="{{ request.path }}" class="btn-limpiar">
+                    Limpiar filtros
+                </a>
+            </div>
 
-	<div class="raciones-comida-semana-chart" style="float: left; width:90%;">
-		<h3 style="font-size: 1.1rem">Cantidad de raciones por comida de los ultimos 7 dias</h3>
-		<canvas id="raciones-comida-semana-chart"></canvas>
-	</div>
+            {% if organizacion_seleccionada_raciones or comedor_seleccionado_raciones %}
+                <div class="filtro-aplicado-box">
+                    <strong>Filtro aplicado</strong>
+
+                    {% if nombre_organizacion_seleccionada_raciones %}
+                        <div class="filtro-item">
+                            <b>Organización:</b> {{ nombre_organizacion_seleccionada_raciones }}
+                        </div>
+                    {% endif %}
+
+                    {% if nombre_comedor_seleccionado_raciones %}
+                        <div class="filtro-item">
+                            <b>Comedor:</b> {{ nombre_comedor_seleccionado_raciones }}
+                        </div>
+                    {% elif nombre_organizacion_seleccionada_raciones %}
+                        <div class="filtro-item">
+                            <b>Comedor:</b> Todos los comedores
+                        </div>
+                    {% endif %}
+
+                    <div class="export-section">
+                        <h4>&#8681; Exportar Reporte Detallado <small style="color:#666; font-weight:normal;">(máx. 3 meses)</small></h4>
+                        <div class="export-row">
+                            <label for="csv-fecha-rango">Rango de fechas:</label>
+                            <input type="text" id="csv-fecha-rango" placeholder="Seleccione un rango..." readonly>
+                            <button type="button" id="btn-exportar-csv-detallado" class="btn-download">
+                                &#11123; Descargar CSV
+                            </button>
+                        </div>
+                        <p id="date-range-error" class="date-range-error">
+                            El rango de fechas no puede exceder los 3 meses.
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
+
+        </form>
+    </div>
+
+
+    <br>
+    <div class="raciones-dia-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por dia de los ultimos 30 dias</h3>
+        <canvas id="raciones-dia-chart"></canvas>
+    </div>
+
+    <div class="raciones-mes-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por mes de los ultimos 12 meses</h3>
+        <canvas id="raciones-mes-chart"></canvas>
+    </div>
+
+    <div class="raciones-funcionamiento-mes-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por funcionamiento de los ultimos 12 meses</h3>
+        <canvas id="raciones-funcionamiento-mes-chart"></canvas>
+    </div>
+
+    <div class="raciones-funcionamiento-semana-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por funcionamiento de los ultimos 7 dias</h3>
+        <canvas id="raciones-funcionamiento-semana-chart"></canvas>
+    </div>
+
+    <div class="raciones-rango-mes-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por rango etario de los ultimos 12 meses</h3>
+        <canvas id="raciones-rango-mes-chart"></canvas>
+    </div>
+
+    <div class="raciones-rango-semana-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por rango etario de los ultimos 7 dias</h3>
+        <canvas id="raciones-rango-semana-chart"></canvas>
+    </div>
+
+    <div class="raciones-comida-mes-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por comida de los ultimos 12 meses</h3>
+        <canvas id="raciones-comida-mes-chart"></canvas>
+    </div>
+
+    <div class="raciones-comida-semana-chart" style="float: left; width:90%;">
+        <h3 style="font-size: 1.1rem">Cantidad de raciones por comida de los ultiraciones-rango-semana-chartsemanamos 7
+            dias</h3>
+        <canvas id="raciones-comida-semana-chart"></canvas>
+    </div>
 
     {{ block.super }}
 
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.0/Chart.min.js"></script>
     <script>
 
-		// funcion para generar un color random
-		function randomColorGenerator() {
+        // Exportar CSV con rango de fechas (Flatpickr)
+        document.addEventListener('DOMContentLoaded', function () {
+            const exportButton = document.getElementById('btn-exportar-csv-detallado');
+            const errorDisplay = document.getElementById('date-range-error');
+
+            if (!exportButton) return; // sección de exportar no visible
+
+            const today = new Date();
+            const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, today.getDate());
+
+            let fechaInicio = threeMonthsAgo;
+            let fechaFin = today;
+
+            function formatDateForUrl(date) {
+                return date.getFullYear() + '-' +
+                    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(date.getDate()).padStart(2, '0');
+            }
+
+            function validateDateRange() {
+                if (!fechaInicio || !fechaFin) {
+                    errorDisplay.textContent = "Por favor, selecciona un rango de fechas completo.";
+                    errorDisplay.style.display = 'block';
+                    exportButton.disabled = true;
+                    return false;
+                }
+
+                const diffMonths = (fechaFin.getFullYear() - fechaInicio.getFullYear()) * 12 +
+                    (fechaFin.getMonth() - fechaInicio.getMonth());
+
+                if (diffMonths > 3 || (diffMonths === 3 && fechaFin.getDate() >= fechaInicio.getDate() + 1)) {
+                    errorDisplay.textContent = "El rango de fechas no puede exceder los 3 meses.";
+                    errorDisplay.style.display = 'block';
+                    exportButton.disabled = true;
+                    return false;
+                }
+
+                errorDisplay.style.display = 'none';
+                exportButton.disabled = false;
+                return true;
+            }
+
+            flatpickr("#csv-fecha-rango", {
+                mode: "range",
+                dateFormat: "d/m/Y",
+                locale: "es",
+                maxDate: today,
+                defaultDate: [threeMonthsAgo, today],
+                onChange: function (selectedDates) {
+                    fechaInicio = selectedDates[0] || null;
+                    fechaFin = selectedDates[1] || null;
+                    validateDateRange();
+                }
+            });
+
+            validateDateRange();
+
+            exportButton.addEventListener("click", function () {
+                if (!validateDateRange()) return;
+
+                const organizacionId = document.getElementById("filtro-organizacion-raciones").value;
+                const comedorId = document.getElementById("filtro-comedor-raciones").value;
+                const tipoOrganizacion = document.getElementById("tipo-organizacion-raciones").value;
+
+                let exportUrl = "{% url 'export-detailed-raciones-csv' %}";
+                let params = [];
+
+                if (organizacionId) params.push(`organizacion=${organizacionId}`);
+                if (comedorId) params.push(`comedor=${comedorId}`);
+                if (tipoOrganizacion) params.push(`tipo_organizacion=${tipoOrganizacion}`);
+                if (fechaInicio) params.push(`fecha_inicio=${formatDateForUrl(fechaInicio)}`);
+                if (fechaFin) params.push(`fecha_fin=${formatDateForUrl(fechaFin)}`);
+
+                if (params.length > 0) exportUrl += `?${params.join('&')}`;
+                window.location.href = exportUrl;
+            });
+        });
+
+        //--------------------------------------------
+
+
+        // funcion para generar un color random
+        function randomColorGenerator() {
             return '#' + (Math.random().toString(16) + '0000000').slice(2, 8);
         };
 
-		// GRAFICO RACIONES POR DIA LOS ULTIMOS 30 ---------------------------------------------------------------------------------------------------
+        // Datos para filtros de raciones
+        const comedoresPorOrganizacionRaciones = [
+            {% for comedor in comedores_por_organizacion_raciones %}
+                {
+                    id: "{{ comedor.id }}",
+                    nombre: "{{ comedor.nombre|escapejs }}",
+                    organizacionHijaId: "{{ comedor.organizacion_hija_id }}",
+                    organizacionPadreId: "{{ comedor.organizacion_padre_id }}"
+                },
+            {% endfor %}
+        ];
 
-		var ctx = document.getElementById("raciones-dia-chart");
-		lineChartRacionesDia = new Chart(ctx, {
-						type: "bar",
-						data: {
-							datasets: [{% for r in raciones_dia %}{
-											label: "{{r.fecha}}",
-											backgroundColor: randomColorGenerator(),
-											data: [{{r.cantidad}}]
-										},{% endfor %}]
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+        const filtroOrganizacionRaciones = document.getElementById("filtro-organizacion-raciones");
+        const filtroComedorRaciones = document.getElementById("filtro-comedor-raciones");
+        const comedorSeleccionadoRaciones = "{{ comedor_seleccionado_raciones|default:'' }}";
+        {#input oculto#}
+        const tipoOrganizacionRaciones = document.getElementById("tipo-organizacion-raciones");
 
-		// GRAFICO RACIONES POR MES --------------------------------------------------------------------------------------------------------------------------------
+        function cargarComedoresPorOrganizacion() {
+            const organizacionSeleccionadaId = filtroOrganizacionRaciones.value;
+            const opcionSeleccionada = filtroOrganizacionRaciones.options[filtroOrganizacionRaciones.selectedIndex];
+            const tipoOrganizacion = opcionSeleccionada.dataset.tipo;
 
-		var ctx = document.getElementById("raciones-mes-chart");
-		lineChartRacionesMes = new Chart(ctx, {
-						type: "bar",
-						data: {
-							datasets: [{% for r in raciones_mes %}{
-											label: "{{r.fecha__month}}"+"/"+"{{r.fecha__year}}",
-											backgroundColor: randomColorGenerator(),
-											data: [{{r.cantidad}}]
-										},{% endfor %}]
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+            tipoOrganizacionRaciones.value = tipoOrganizacion || "";
 
-		// GRAFICO RACIONES POR FUNCIONAMIENTO POR MES -------------------------------------------------------------------------------------------------------------
+            filtroComedorRaciones.innerHTML = '<option value="">Todos los comedores</option>';
 
-		let xValues_mes = []
-		let desayuno = []
-		let almuerzo = []
-		let cena = []
-		let merienda = []
-		let olla_popular = []
-		let d = 0
-		let a = 0
-		let c = 0
-		let m = 0
-		let o = 0
-		let mes = ''
-		let año = ''
-		let i = 0
+            if (!organizacionSeleccionadaId) {
+                filtroComedorRaciones.disabled = true;
+                return;
+            }
 
-		{% for r in raciones_mes_funcionamiento %}
-			while (i<1){
-				mes = '{{r.fecha__month}}'
-				año = '{{r.fecha__year}}'
-				i = 1
-			}
-			if ('{{r.fecha__year}}' === año && '{{r.fecha__month}}' === mes){
-				if ('{{r.funcionamiento}}' === 'desayuno'){
-					d = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'almuerzo'){
-					a = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'cena'){
-					c = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'merienda'){
-					m = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'olla_popular'){
-					o = '{{r.cantidad}}'
-				}
-			}
-			else{
-				desayuno.push(d)
-				cena.push(c)
-				merienda.push(m)
-				almuerzo.push(a)
-				olla_popular.push(o)
-				xValues_mes.push(mes+'/'+año)
-				mes = '{{r.fecha__month}}'
-				año = '{{r.fecha__year}}'
-				if ('{{r.funcionamiento}}' === 'desayuno'){
-					d = '{{r.cantidad}}'
-					o = 0
-					c = 0
-					a = 0
-					m = 0
-				} else if ('{{r.funcionamiento}}' === 'almuerzo'){
-					d = 0
-					o = 0
-					c = 0
-					a = '{{r.cantidad}}'
-					m = 0
-				} else if ('{{r.funcionamiento}}' === 'cena'){
-					d = 0
-					o = 0
-					c = '{{r.cantidad}}'
-					a = 0
-					m = 0
-				} else if ('{{r.funcionamiento}}' === 'merienda'){
-					d = 0
-					o = 0
-					c = 0
-					a = 0
-					m = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'olla_popular'){
-					d = 0
-					o = '{{r.cantidad}}'
-					c = 0
-					a = 0
-					m = 0
-				}
-			}
-		{% endfor %}
+            const comedoresFiltrados = comedoresPorOrganizacionRaciones.filter(function (comedor) {
+                if (tipoOrganizacion === "padre") {
+                    return comedor.organizacionPadreId === organizacionSeleccionadaId;
+                }
 
-		if (mes !== ""){
-			desayuno.push(d)
-			cena.push(c)
-			merienda.push(m)
-			almuerzo.push(a)
-			olla_popular.push(o)
-			xValues_mes.push(mes+'/'+año)
-		}
+                if (tipoOrganizacion === "hija") {
+                    return comedor.organizacionHijaId === organizacionSeleccionadaId;
+                }
 
-		var ctx = document.getElementById("raciones-funcionamiento-mes-chart");
-		lineChartRacionesMesFuncionamiento = new Chart(ctx, {
-						type: "bar",
-						data: {
-							labels: xValues_mes,
-							datasets: [{
-							  label: 'Desayuno',
-							  data: desayuno,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Almuerzo',
-							  data: almuerzo,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Merienda',
-							  data: merienda,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Cena',
-							  data: cena,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Olla popular',
-							  data: olla_popular,
-							  backgroundColor: randomColorGenerator(),
-							}]
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+                return false;
+            });
 
-		// GRAFICO RACIONES POR FUNCIONAMIENTO POR DIA (una semana) ------------------------------------------------------------------------------------------------
+            comedoresFiltrados.forEach(function (comedor) {
+                const option = document.createElement("option");
+                option.value = comedor.id;
+                option.textContent = comedor.nombre;
 
-		let xValues_semana = []
-		desayuno = []
-		almuerzo = []
-		cena = []
-		merienda = []
-		olla_popular = []
-		d = 0
-		a = 0
-		c = 0
-		m = 0
-		o = 0
-		let fecha = ''
-		i = 0
+                if (comedor.id === comedorSeleccionadoRaciones) {
+                    option.selected = true;
+                }
 
-		{% for r in raciones_semana_funcionamiento %}
-			while (i<1){
-				fecha = '{{r.fecha}}'
-				i = 1
-			}
-			if ('{{r.fecha}}' === fecha){
-				if ('{{r.funcionamiento}}' === 'desayuno'){
-					d = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'almuerzo'){
-					a = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'cena'){
-					c = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'merienda'){
-					m = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'olla_popular'){
-					o = '{{r.cantidad}}'
-				}
-			}
-			else{
-				desayuno.push(d)
-				cena.push(c)
-				merienda.push(m)
-				almuerzo.push(a)
-				olla_popular.push(o)
-				xValues_semana.push(fecha)
-				fecha = '{{r.fecha}}'
-				if ('{{r.funcionamiento}}' === 'desayuno'){
-					d = '{{r.cantidad}}'
-					o = 0
-					c = 0
-					a = 0
-					m = 0
-				} else if ('{{r.funcionamiento}}' === 'almuerzo'){
-					d = 0
-					o = 0
-					c = 0
-					a = '{{r.cantidad}}'
-					m = 0
-				} else if ('{{r.funcionamiento}}' === 'cena'){
-					d = 0
-					o = 0
-					c = '{{r.cantidad}}'
-					a = 0
-					m = 0
-				} else if ('{{r.funcionamiento}}' === 'merienda'){
-					d = 0
-					o = 0
-					c = 0
-					a = 0
-					m = '{{r.cantidad}}'
-				} else if ('{{r.funcionamiento}}' === 'olla_popular'){
-					d = 0
-					o = '{{r.cantidad}}'
-					c = 0
-					a = 0
-					m = 0
-				}
-			}
-		{% endfor %}
+                filtroComedorRaciones.appendChild(option);
+            });
 
-		if (fecha !== ""){
-			desayuno.push(d)
-			cena.push(c)
-			merienda.push(m)
-			almuerzo.push(a)
-			olla_popular.push(o)
-			xValues_semana.push(fecha)
-		}
+            filtroComedorRaciones.disabled = false;
+        }
 
-		var ctx = document.getElementById("raciones-funcionamiento-semana-chart");
-		lineChartRacionesSemanaFuncionamiento = new Chart(ctx, {
-						type: "bar",
-						data: {
-							labels: xValues_semana,
-							datasets: [{
-							  label: 'Desayuno',
-							  data: desayuno,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Almuerzo',
-							  data: almuerzo,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Merienda',
-							  data: merienda,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Cena',
-							  data: cena,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'Olla popular',
-							  data: olla_popular,
-							  backgroundColor: randomColorGenerator(),
-							}]
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+        filtroOrganizacionRaciones.addEventListener("change", function () {
+            cargarComedoresPorOrganizacion();
+        });
 
-		// GRAFICO RACIONES POR RANGO ETARIO POR MES -------------------------------------------------------------------------------------------------------------
+        cargarComedoresPorOrganizacion();
 
-		let rango_1 = []
-		let rango_2 = []
-		let rango_3 = []
-		let rango_4 = []
-		xValues_mes = []
 
-		{% for r in raciones_mes_rango_etario %}
-			rango_1.push('{{r.cantidad_rango_1}}')
-			rango_2.push('{{r.cantidad_rango_2}}')
-			rango_3.push('{{r.cantidad_rango_3}}')
-			rango_4.push('{{r.cantidad_rango_4}}')
-			xValues_mes.push('{{r.fecha__month}}'+'/'+'{{r.fecha__year}}')
-		{% endfor %}
+        // GRAFICO RACIONES POR DIA LOS ULTIMOS 30 ---------------------------------------------------------------------------------------------------
 
-		var ctx = document.getElementById("raciones-rango-mes-chart");
-		lineChartRangoMes = new Chart(ctx, {
-						type: "bar",
-						data: {
-							labels: xValues_mes,
-							datasets: [{
-							  label: '1 a 3',
-							  data: rango_1,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: '4 a 6',
-							  data: rango_2,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: '7 a 9',
-							  data: rango_3,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'mas de 10',
-							  data: rango_4,
-							  backgroundColor: randomColorGenerator(),
-							}]
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+        var ctx = document.getElementById("raciones-dia-chart");
+        lineChartRacionesDia = new Chart(ctx, {
+            type: "bar",
+            data: {
+                datasets: [{% for r in raciones_dia %}{
+                        label: "{{r.fecha}}",
+                        backgroundColor: randomColorGenerator(),
+                        data: [{{r.cantidad}}]
+                        },{% endfor %}]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
 
-		// GRAFICO RACIONES POR RANGO ETARIO POR DIA (una semana) ------------------------------------------------------------------------------------------------
+        // GRAFICO RACIONES POR MES --------------------------------------------------------------------------------------------------------------------------------
 
-		rango_1 = []
-		rango_2 = []
-		rango_3 = []
-		rango_4 = []
-		xValues_semana = []
+        var ctx = document.getElementById("raciones-mes-chart");
+        lineChartRacionesMes = new Chart(ctx, {
+            type: "bar",
+            data: {
+                datasets: [{% for r in raciones_mes %}{
+                        label: "{{r.fecha__month}}" + "/" + "{{r.fecha__year}}",
+                        backgroundColor: randomColorGenerator(),
+                        data: [{{r.cantidad}}]
+                        },{% endfor %}]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
 
-		{% for r in raciones_semana_rango_etario %}
-			rango_1.push('{{r.cantidad_rango_1}}')
-			rango_2.push('{{r.cantidad_rango_2}}')
-			rango_3.push('{{r.cantidad_rango_3}}')
-			rango_4.push('{{r.cantidad_rango_4}}')
-			xValues_semana.push('{{r.fecha}}')
-		{% endfor %}
+        // GRAFICO RACIONES POR FUNCIONAMIENTO POR MES -------------------------------------------------------------------------------------------------------------
 
-		ctx = document.getElementById("raciones-rango-semana-chart");
-		lineChartRangoSemanaFuncionamiento = new Chart(ctx, {
-						type: "bar",
-						data: {
-							labels: xValues_semana,
-							datasets: [{
-							  label: '1 a 3',
-							  data: rango_1,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: '4 a 6',
-							  data: rango_2,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: '7 a 9',
-							  data: rango_3,
-							  backgroundColor: randomColorGenerator(),
-							}, {
-							  label: 'mas de 10',
-							  data: rango_4,
-							  backgroundColor: randomColorGenerator(),
-							}]
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+        let xValues_mes = []
+        let desayuno = []
+        let almuerzo = []
+        let cena = []
+        let merienda = []
+        let olla_popular = []
+        let d = 0
+        let a = 0
+        let c = 0
+        let m = 0
+        let o = 0
+        let mes = ''
+        let año = ''
+        let i = 0
 
-		// GRAFICO DE RACIONES POR COMIDA POR MES ------------------------------------------------------------------------------------------------------------------
+        {% for r in raciones_mes_funcionamiento %}
+            while (i < 1) {
+                mes = '{{r.fecha__month}}'
+                año = '{{r.fecha__year}}'
+                i = 1
+            }
+            if ('{{r.fecha__year}}' === año && '{{r.fecha__month}}' === mes) {
+                if ('{{r.funcionamiento}}' === 'desayuno') {
+                    d = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'almuerzo') {
+                    a = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'cena') {
+                    c = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'merienda') {
+                    m = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'olla_popular') {
+                    o = '{{r.cantidad}}'
+                }
+            } else {
+                desayuno.push(d)
+                cena.push(c)
+                merienda.push(m)
+                almuerzo.push(a)
+                olla_popular.push(o)
+                xValues_mes.push(mes + '/' + año)
+                mes = '{{r.fecha__month}}'
+                año = '{{r.fecha__year}}'
+                if ('{{r.funcionamiento}}' === 'desayuno') {
+                    d = '{{r.cantidad}}'
+                    o = 0
+                    c = 0
+                    a = 0
+                    m = 0
+                } else if ('{{r.funcionamiento}}' === 'almuerzo') {
+                    d = 0
+                    o = 0
+                    c = 0
+                    a = '{{r.cantidad}}'
+                    m = 0
+                } else if ('{{r.funcionamiento}}' === 'cena') {
+                    d = 0
+                    o = 0
+                    c = '{{r.cantidad}}'
+                    a = 0
+                    m = 0
+                } else if ('{{r.funcionamiento}}' === 'merienda') {
+                    d = 0
+                    o = 0
+                    c = 0
+                    a = 0
+                    m = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'olla_popular') {
+                    d = 0
+                    o = '{{r.cantidad}}'
+                    c = 0
+                    a = 0
+                    m = 0
+                }
+            }
+        {% endfor %}
 
-		let lista_fechas = []
-		{% for f in fechas_mes %}
-			lista_fechas.push('{{f}}')
-		{% endfor %}
+        if (mes === "") {
+            desayuno.push(d)
+            cena.push(c)
+            merienda.push(m)
+            almuerzo.push(a)
+            olla_popular.push(o)
+            xValues_mes.push(mes + '/' + año)
+        }
 
-		// Agrupamos los datos por comida
-		let datos_por_comida = {}
-		{% for r in raciones_comida_mes %}
-			if (!datos_por_comida['{{r.comida__nombre}}']) {
-				datos_por_comida['{{r.comida__nombre}}'] = {}
-			}
-			datos_por_comida['{{r.comida__nombre}}']['{{r.encuesta__fecha__month}}/{{r.encuesta__fecha__year}}'] = {{r.cantidad}}
-		{% endfor %}
+        var ctx = document.getElementById("raciones-funcionamiento-mes-chart");
+        lineChartRacionesMesFuncionamiento = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: xValues_mes,
+                datasets: [{
+                    label: 'Desayuno',
+                    data: desayuno,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Almuerzo',
+                    data: almuerzo,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Merienda',
+                    data: merienda,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Cena',
+                    data: cena,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Olla popular',
+                    data: olla_popular,
+                    backgroundColor: randomColorGenerator(),
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
 
-		// Creamos los datasets para cada comida, ordenando por fecha
-		let comida_mes = []
-		for (let comida in datos_por_comida) {
-			let datos_ordenados = []
-			for (let fecha of lista_fechas) {
-				datos_ordenados.push(datos_por_comida[comida][fecha] || 0)
-			}
-			comida_mes.push({
-				'label': comida,
-				'data': datos_ordenados,
-				'backgroundColor': randomColorGenerator(),
-			})
-		}
+        // GRAFICO RACIONES POR FUNCIONAMIENTO POR DIA (una semana) ------------------------------------------------------------------------------------------------
 
-		var ctx = document.getElementById("raciones-comida-mes-chart");
-		lineChartMesComida = new Chart(ctx, {
-						type: "bar",
-						data: {
-							labels: lista_fechas,
-							datasets: comida_mes
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+        let xValues_semana = []
+        desayuno = []
+        almuerzo = []
+        cena = []
+        merienda = []
+        olla_popular = []
+        d = 0
+        a = 0
+        c = 0
+        m = 0
+        o = 0
+        let fecha = ''
+        i = 0
 
-		// GRAFICO DE RACIONES POR COMIDA POR DIA (una semana) -----------------------------------------------------------------------------------------------------
+        {% for r in raciones_semana_funcionamiento %}
+            while (i < 1) {
+                fecha = '{{r.fecha}}'
+                i = 1
+            }
+            if ('{{r.fecha}}' === fecha) {
+                if ('{{r.funcionamiento}}' === 'desayuno') {
+                    d = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'almuerzo') {
+                    a = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'cena') {
+                    c = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'merienda') {
+                    m = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'olla_popular') {
+                    o = '{{r.cantidad}}'
+                }
+            } else {
+                desayuno.push(d)
+                cena.push(c)
+                merienda.push(m)
+                almuerzo.push(a)
+                olla_popular.push(o)
+                xValues_semana.push(fecha)
+                fecha = '{{r.fecha}}'
+                if ('{{r.funcionamiento}}' === 'desayuno') {
+                    d = '{{r.cantidad}}'
+                    o = 0
+                    c = 0
+                    a = 0
+                    m = 0
+                } else if ('{{r.funcionamiento}}' === 'almuerzo') {
+                    d = 0
+                    o = 0
+                    c = 0
+                    a = '{{r.cantidad}}'
+                    m = 0
+                } else if ('{{r.funcionamiento}}' === 'cena') {
+                    d = 0
+                    o = 0
+                    c = '{{r.cantidad}}'
+                    a = 0
+                    m = 0
+                } else if ('{{r.funcionamiento}}' === 'merienda') {
+                    d = 0
+                    o = 0
+                    c = 0
+                    a = 0
+                    m = '{{r.cantidad}}'
+                } else if ('{{r.funcionamiento}}' === 'olla_popular') {
+                    d = 0
+                    o = '{{r.cantidad}}'
+                    c = 0
+                    a = 0
+                    m = 0
+                }
+            }
+        {% endfor %}
 
-		lista_fechas = []
-		{% for f in fechas_semana %}
-			lista_fechas.push('{{f}}')
-		{% endfor %}
+        if (fecha !== "") {
+            desayuno.push(d)
+            cena.push(c)
+            merienda.push(m)
+            almuerzo.push(a)
+            olla_popular.push(o)
+            xValues_semana.push(fecha)
+        }
 
-		// Agrupamos los datos por comida
-		let datos_por_comida_semana = {}
-		{% for r in raciones_comida_semana %}
-			if (!datos_por_comida_semana['{{r.comida__nombre}}']) {
-				datos_por_comida_semana['{{r.comida__nombre}}'] = {}
-			}
-			datos_por_comida_semana['{{r.comida__nombre}}']['{{r.encuesta__fecha}}'] = {{r.cantidad}}
-		{% endfor %}
+        var ctx = document.getElementById("raciones-funcionamiento-semana-chart");
+        lineChartRacionesSemanaFuncionamiento = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: xValues_semana,
+                datasets: [{
+                    label: 'Desayuno',
+                    data: desayuno,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Almuerzo',
+                    data: almuerzo,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Merienda',
+                    data: merienda,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Cena',
+                    data: cena,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'Olla popular',
+                    data: olla_popular,
+                    backgroundColor: randomColorGenerator(),
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
 
-		// Creamos los datasets para cada comida, ordenando por fecha
-		let comida_semana = []
-		for (let comida in datos_por_comida_semana) {
-			let datos_ordenados = []
-			for (let fecha of lista_fechas) {
-				datos_ordenados.push(datos_por_comida_semana[comida][fecha] || 0)
-			}
-			comida_semana.push({
-				'label': comida,
-				'data': datos_ordenados,
-				'backgroundColor': randomColorGenerator(),
-			})
-		}
+        // GRAFICO RACIONES POR RANGO ETARIO POR MES -------------------------------------------------------------------------------------------------------------
 
-		var ctx = document.getElementById("raciones-comida-semana-chart");
-		lineChartSemanaComida = new Chart(ctx, {
-						type: "bar",
-						data: {
-							labels: lista_fechas,
-							datasets: comida_semana
-						},
-						options: {
-						scales: {
-						  yAxes: [{
-							ticks: {
-							  beginAtZero: true
-							}
-						  }],
-						  xAxes: [{
-							barPercentage: 0.8
-						  }]
-						},
-						legend: {display: true},
-						}
-					});
+        let rango_1 = []
+        let rango_2 = []
+        let rango_3 = []
+        let rango_4 = []
+        xValues_mes = []
+
+        {% for r in raciones_mes_rango_etario %}
+            rango_1.push('{{r.cantidad_rango_1}}')
+            rango_2.push('{{r.cantidad_rango_2}}')
+            rango_3.push('{{r.cantidad_rango_3}}')
+            rango_4.push('{{r.cantidad_rango_4}}')
+            xValues_mes.push('{{r.fecha__month}}' + '/' + '{{r.fecha__year}}')
+        {% endfor %}
+
+        var ctx = document.getElementById("raciones-rango-mes-chart");
+        lineChartRangoMes = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: xValues_mes,
+                datasets: [{
+                    label: '1 a 3',
+                    data: rango_1,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: '4 a 6',
+                    data: rango_2,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: '7 a 9',
+                    data: rango_3,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'mas de 10',
+                    data: rango_4,
+                    backgroundColor: randomColorGenerator(),
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
+
+        // GRAFICO RACIONES POR RANGO ETARIO POR DIA (una semana) ------------------------------------------------------------------------------------------------
+
+        rango_1 = []
+        rango_2 = []
+        rango_3 = []
+        rango_4 = []
+        xValues_semana = []
+
+        {% for r in raciones_semana_rango_etario %}
+            rango_1.push('{{r.cantidad_rango_1}}')
+            rango_2.push('{{r.cantidad_rango_2}}')
+            rango_3.push('{{r.cantidad_rango_3}}')
+            rango_4.push('{{r.cantidad_rango_4}}')
+            xValues_semana.push('{{r.fecha}}')
+        {% endfor %}
+
+        ctx = document.getElementById("raciones-rango-semana-chart");
+        lineChartRangoSemanaFuncionamiento = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: xValues_semana,
+                datasets: [{
+                    label: '1 a 3',
+                    data: rango_1,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: '4 a 6',
+                    data: rango_2,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: '7 a 9',
+                    data: rango_3,
+                    backgroundColor: randomColorGenerator(),
+                }, {
+                    label: 'mas de 10',
+                    data: rango_4,
+                    backgroundColor: randomColorGenerator(),
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
+
+        // GRAFICO DE RACIONES POR COMIDA POR MES ------------------------------------------------------------------------------------------------------------------
+
+        let lista_fechas = []
+        {% for f in fechas_mes %}
+            lista_fechas.push('{{f}}')
+        {% endfor %}
+
+        i = 0
+        m = []
+        let comida_mes = []
+        let comida = ''
+
+        {% for r in raciones_comida_mes %}
+            while (i < 1) {
+                comida = '{{r.comida__nombre}}'
+                i = 1
+            }
+            if ('{{r.comida__nombre}}' === comida) {
+                m.push('{{r.cantidad}}')
+            } else {
+                comida_mes.push({
+                    'label': comida,
+                    'data': m,
+                    'backgroundColor': randomColorGenerator(),
+                })
+                comida = '{{r.comida__nombre}}'
+                m = []
+                m.push('{{r.cantidad}}')
+            }
+        {% endfor %}
+
+        if (comida !== "") {
+            comida_mes.push({
+                'label': comida,
+                'data': m,
+                'backgroundColor': randomColorGenerator(),
+            })
+        }
+
+        var ctx = document.getElementById("raciones-comida-mes-chart");
+        lineChartMesComida = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: lista_fechas,
+                datasets: comida_mes
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
+
+        // GRAFICO DE RACIONES POR COMIDA POR DIA (una semana) -----------------------------------------------------------------------------------------------------
+
+        lista_fechas = []
+        {% for f in fechas_semana %}
+            lista_fechas.push('{{f}}')
+        {% endfor %}
+
+        i = 0
+        m = []
+        let comida_semana = []
+        comida = ""
+
+        {% for r in raciones_comida_semana %}
+            while (i < 1) {
+                comida = '{{r.comida__nombre}}'
+                i = 1
+            }
+            if ('{{r.comida__nombre}}' === comida) {
+                m.push('{{r.cantidad}}')
+            } else {
+                comida_semana.push({
+                    'label': comida,
+                    'data': m,
+                    'backgroundColor': randomColorGenerator(),
+                })
+                comida = '{{r.comida__nombre}}'
+                m = []
+                m.push('{{r.cantidad}}')
+            }
+        {% endfor %}
+
+        if (comida !== "") {
+            comida_semana.push({
+                'label': comida,
+                'data': m,
+                'backgroundColor': randomColorGenerator(),
+            })
+        }
+
+        var ctx = document.getElementById("raciones-comida-semana-chart");
+        lineChartSemanaComida = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: lista_fechas,
+                datasets: comida_semana
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }],
+                    xAxes: [{
+                        barPercentage: 0.8
+                    }]
+                },
+                legend: {display: true},
+            }
+        });
 
     </script>
 {% endblock %}
