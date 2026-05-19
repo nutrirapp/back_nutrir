@@ -10,7 +10,7 @@ Sistema de gestión para comedores comunitarios. El proyecto se divide en dos pa
 ## Permisos necesarios
 
 > Antes de comenzar, solicitar al encargado del proyecto:
-> - **Acceso al repositorio de GitHub** (permisos para hacer push)
+> - **Acceso al repositorio de GitHub** para aplicar los cambios
 > - **Credenciales SSH del servidor** para aplicar cambios en producción
 
 ---
