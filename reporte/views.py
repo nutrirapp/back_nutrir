@@ -485,20 +485,21 @@ def export_detailed_raciones_csv(request):
 
 		tipo_comida = comida_horario_map.get(comida.id, '-')
 
-		writer.writerow([
-			encuesta.fecha.strftime('%d/%m/%Y'),
-			org_nombre,
-			encuesta.comedor.nombre,
-			comida.nombre,
-			tipo_comida,
-			f"{total_raciones:.0f}",
-			f"{total_hidratos:.2f}",
-			f"{total_proteina:.2f}",
-			f"{total_grasas_sat:.2f}",
-			f"{total_grasas_tot:.2f}",
-			f"{total_sodio_mg / 1000:.2f}",
-			f"{total_kcal:.2f}",
-		])
+		if total_raciones > 0:
+			writer.writerow([
+				encuesta.fecha.strftime('%d/%m/%Y'),
+				org_nombre,
+				encuesta.comedor.nombre,
+				comida.nombre,
+				tipo_comida,
+				f"{total_raciones:.0f}",
+				f"{total_hidratos / total_raciones:.2f}",
+				f"{total_proteina / total_raciones:.2f}",
+				f"{total_grasas_sat / total_raciones:.2f}",
+				f"{total_grasas_tot / total_raciones:.2f}",
+				f"{(total_sodio_mg / 1000) / total_raciones:.2f}",
+				f"{total_kcal / total_raciones:.2f}",
+			])
 
 	return response
 

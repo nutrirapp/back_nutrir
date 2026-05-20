@@ -340,17 +340,11 @@ class ReportesNutricionalesAdmin(admin.ModelAdmin):
 		td = relativedelta(months=-11)
 		fecha_limite = today + td
 
-		print(f"\n=== INICIO CÁLCULO NUTRICIONAL ===")
-		print(f"Fecha límite: {fecha_limite}")
-		print(f"Fecha actual: {today}")
-
 		# Obtener todas las encuestas de los últimos 12 meses
 		encuestas_12_meses = Encuesta.objects.filter(
 			comedor__in=lc,
 			fecha__range=(fecha_limite, today)
 		).order_by('-fecha')
-		
-		print(f"Total encuestas encontradas: {encuestas_12_meses.count()}")
 
 		# Calcular nutrientes por mes
 		nutrientes_por_mes = {}
@@ -363,98 +357,69 @@ class ReportesNutricionalesAdmin(admin.ModelAdmin):
 					'total_comensales': 0, 'total_encuestas': 0
 				}
 			
-			print(f"\n--- ENCUESTA {encuesta.id} - {encuesta.fecha} ---")
-			
 			# Obtener alimentos de esta encuesta
 			alimentos_encuesta = AlimentoEncuesta.objects.filter(encuesta=encuesta)
-			print(f"Alimentos en encuesta: {alimentos_encuesta.count()}")
-			
+
 			# Calcular total de comensales
 			total_comensales = encuesta.cantidad_rango_1 + encuesta.cantidad_rango_2 + encuesta.cantidad_rango_3 + encuesta.cantidad_rango_4
-			print(f"Comensales: {total_comensales} (rango1:{encuesta.cantidad_rango_1}, rango2:{encuesta.cantidad_rango_2}, rango3:{encuesta.cantidad_rango_3}, rango4:{encuesta.cantidad_rango_4})")
-			
+
 			if total_comensales > 0:
-				# Calcular nutrientes por comensal
-				nutrientes_por_comensal = {'hidratos': 0, 'proteinas': 0, 'grasasSaturadas': 0, 
+				nutrientes_por_comensal = {'hidratos': 0, 'proteinas': 0, 'grasasSaturadas': 0,
 											'grasasTotales': 0, 'kilocalorias': 0, 'sodio': 0}
-				
+
 				for alimento_encuesta in alimentos_encuesta:
-					# Obtener la unidad y su equivalencia en gramos
 					unidad = alimento_encuesta.unidad
 					cantidad_unidades = float(alimento_encuesta.cantidad)
-					
-					print(f"  Alimento: {alimento_encuesta.alimento.nombre}")
-					print(f"  Cantidad: {cantidad_unidades} {unidad.nombre}")
-					print(f"  Equivalencia gramos: {unidad.equivalencia_gramos}")
-					print(f"  Equivalencia ml: {unidad.equivalencia_ml}")
-					
-					# Convertir a gramos usando la equivalencia de la unidad
+
 					if unidad.equivalencia_gramos:
 						cantidad_gramos = cantidad_unidades * float(unidad.equivalencia_gramos)
-						print(f"  Conversión: {cantidad_unidades} × {unidad.equivalencia_gramos} = {cantidad_gramos}g")
 					else:
-						# Si no hay equivalencia en gramos, usar ml y asumir densidad 1g/ml
 						cantidad_gramos = cantidad_unidades * float(unidad.equivalencia_ml)
-						print(f"  Conversión: {cantidad_unidades} × {unidad.equivalencia_ml} = {cantidad_gramos}g (ml)")
-					
-					# Obtener nutrientes del alimento (por 100g)
+
 					alimento = alimento_encuesta.alimento
-					print(f"  Nutrientes por 100g: H:{alimento.hidratos_carbono}, P:{alimento.proteinas}, G:{alimento.grasas}, GT:{alimento.grasas_totales}, E:{alimento.energia}, S:{alimento.sodio}")
-					
-					# Calcular nutrientes totales de este alimento
 					nutrientes_alimento = {
 						'hidratos': (float(alimento.hidratos_carbono) * cantidad_gramos) / 100,
 						'proteinas': (float(alimento.proteinas) * cantidad_gramos) / 100,
 						'grasasSaturadas': (float(alimento.grasas) * cantidad_gramos) / 100,
 						'grasasTotales': (float(alimento.grasas_totales) * cantidad_gramos) / 100,
 						'kilocalorias': (float(alimento.energia) * cantidad_gramos) / 100,
-						'sodio': (float(alimento.sodio) * cantidad_gramos) / 100
+						'sodio': (float(alimento.sodio) * cantidad_gramos) / 100,
 					}
-					
-					print(f"  Nutrientes totales: H:{nutrientes_alimento['hidratos']:.2f}, P:{nutrientes_alimento['proteinas']:.2f}, G:{nutrientes_alimento['grasasSaturadas']:.2f}, GT:{nutrientes_alimento['grasasTotales']:.2f}, E:{nutrientes_alimento['kilocalorias']:.2f}, S:{nutrientes_alimento['sodio']:.2f}")
-					
-					# Sumar a los nutrientes totales
+
 					for nutriente in nutrientes_por_comensal:
 						nutrientes_por_comensal[nutriente] += nutrientes_alimento[nutriente]
-				
-				print(f"  Nutrientes totales comida: H:{nutrientes_por_comensal['hidratos']:.2f}, P:{nutrientes_por_comensal['proteinas']:.2f}, G:{nutrientes_por_comensal['grasasSaturadas']:.2f}, GT:{nutrientes_por_comensal['grasasTotales']:.2f}, E:{nutrientes_por_comensal['kilocalorias']:.2f}, S:{nutrientes_por_comensal['sodio']:.2f}")
-				
+
 				# Dividir por número de comensales para obtener nutrientes por comensal
 				for nutriente in nutrientes_por_comensal:
 					nutrientes_por_comensal[nutriente] = nutrientes_por_comensal[nutriente] / total_comensales
-				
-				print(f"  Nutrientes por comensal: H:{nutrientes_por_comensal['hidratos']:.2f}, P:{nutrientes_por_comensal['proteinas']:.2f}, G:{nutrientes_por_comensal['grasasSaturadas']:.2f}, GT:{nutrientes_por_comensal['grasasTotales']:.2f}, E:{nutrientes_por_comensal['kilocalorias']:.2f}, S:{nutrientes_por_comensal['sodio']:.2f}")
-				
+
 				# Sumar al mes
 				for nutriente in nutrientes_por_mes[mes_key]:
 					if nutriente in nutrientes_por_comensal:
 						nutrientes_por_mes[mes_key][nutriente] += nutrientes_por_comensal[nutriente]
-				
+
 				nutrientes_por_mes[mes_key]['total_comensales'] += total_comensales
 				nutrientes_por_mes[mes_key]['total_encuestas'] += 1
 
 		# Calcular promedios por mes
 		promedios_mes = []
-		print(f"\n=== RESUMEN POR MES ===")
 		for mes, datos in nutrientes_por_mes.items():
 			if datos['total_encuestas'] > 0:
+				n = datos['total_encuestas']
 				promedio = {
 					'mes': mes,
-					'hidratos': round(datos['hidratos'] / datos['total_encuestas'], 2),
-					'proteinas': round(datos['proteinas'] / datos['total_encuestas'], 2),
-					'grasasSaturadas': round(datos['grasasSaturadas'] / datos['total_encuestas'], 2),
-					'grasasTotales': round(datos['grasasTotales'] / datos['total_encuestas'], 2),
-					'kilocalorias': round(datos['kilocalorias'] / datos['total_encuestas'], 2),
-					'sodio': round(datos['sodio'] / datos['total_encuestas'], 2),
-					'porciones': round(datos['total_comensales'] / datos['total_encuestas'], 2)
+					'hidratos': round(datos['hidratos'] / n, 2),
+					'proteinas': round(datos['proteinas'] / n, 2),
+					'grasasSaturadas': round(datos['grasasSaturadas'] / n, 2),
+					'grasasTotales': round(datos['grasasTotales'] / n, 2),
+					'kilocalorias': round(datos['kilocalorias'] / n, 2),
+					'sodio': round((datos['sodio'] / n) / 1000, 4),
+					'porciones': round(datos['total_comensales'] / n, 2),
 				}
-				print(f"Mes {mes}: {datos['total_encuestas']} encuestas, {datos['total_comensales']} comensales")
-				print(f"  Promedio por comensal: H:{promedio['hidratos']:.2f}, P:{promedio['proteinas']:.2f}, G:{promedio['grasasSaturadas']:.2f}, GT:{promedio['grasasTotales']:.2f}, E:{promedio['kilocalorias']:.2f}, S:{promedio['sodio']:.2f}")
 				promedios_mes.append(promedio)
-		
+
 		# Ordenar por fecha (mes-año)
 		promedios_mes.sort(key=lambda x: x['mes'])
-		print(f"\n=== FIN CÁLCULO NUTRICIONAL ===")
 
 		# CÁLCULO PARA ÚLTIMOS 7 DÍAS
 		td_7 = timedelta(days=-6)
@@ -531,18 +496,19 @@ class ReportesNutricionalesAdmin(admin.ModelAdmin):
 		promedios_dia = []
 		for dia, datos in nutrientes_por_dia.items():
 			if datos['total_encuestas'] > 0:
+				n = datos['total_encuestas']
 				promedio = {
 					'dia': dia,
-					'hidratos': round(datos['hidratos'] / datos['total_encuestas'], 2),
-					'proteinas': round(datos['proteinas'] / datos['total_encuestas'], 2),
-					'grasasSaturadas': round(datos['grasasSaturadas'] / datos['total_encuestas'], 2),
-					'grasasTotales': round(datos['grasasTotales'] / datos['total_encuestas'], 2),
-					'kilocalorias': round(datos['kilocalorias'] / datos['total_encuestas'], 2),
-					'sodio': round(datos['sodio'] / datos['total_encuestas'], 2),
-					'porciones': round(datos['total_comensales'] / datos['total_encuestas'], 2)
+					'hidratos': round(datos['hidratos'] / n, 2),
+					'proteinas': round(datos['proteinas'] / n, 2),
+					'grasasSaturadas': round(datos['grasasSaturadas'] / n, 2),
+					'grasasTotales': round(datos['grasasTotales'] / n, 2),
+					'kilocalorias': round(datos['kilocalorias'] / n, 2),
+					'sodio': round((datos['sodio'] / n) / 1000, 4),
+					'porciones': round(datos['total_comensales'] / n, 2),
 				}
 				promedios_dia.append(promedio)
-		
+
 		# Ordenar por fecha (día)
 		promedios_dia.sort(key=lambda x: x['dia'])
 
